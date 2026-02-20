@@ -316,7 +316,7 @@ export default function FitnessTrackerScreen({ user, onLogout }) {
             <View style={styles.categoryContainer}>
               <Text style={styles.categoryLabel}>Category:</Text>
               <View style={styles.categoryButtons}>
-                {['Wellness', 'Fitness', 'Health', 'Performance'].map(cat => (
+                {['Wellness', 'Fitness', 'Health', 'Performance','LifeStyle'].map(cat => ( //added lifestyle category option gavin berger
                   <TouchableOpacity
                     key={cat}
                     style={[
