@@ -206,11 +206,13 @@ class DatabaseServiceClass {
       [name, description, icon, target_value, target_unit, category, activityId]
     );
   }
-
+// THIS IS THE BUGGGG IT WAS NOT RETURNING ANYTHING
+// After Completion its not updating.
   async deleteActivity(activityId) {
     await this.db.runAsync(
       'UPDATE fitness_activities SET is_active = 0 WHERE id = ?',
-      []
+      [activityId]
+
     );
   }
 
