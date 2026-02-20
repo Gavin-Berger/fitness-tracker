@@ -77,22 +77,22 @@ class AuthServiceClass {
   validatePassword(password) {
   const errors = [];
 
-  // Check if password is empty or less than 8 characters
+  // Check if password is empty or less than 8 characters /Gavin Berger
   if (!password || password.length < 8) {  
     errors.push('Password must be at least 8 characters long');
   }
 
-  // Check if password contains at least one uppercase letter (A-Z)
+  // Check if password contains at least one uppercase letter 
   if (!/[A-Z]/.test(password)) {
     errors.push('Password must contain at least 1 uppercase letter');
   }
 
-  // Check if password contains at least one lowercase letter (a-z)
+  // Check if password contains at least one lowercase letter 
   if (!/[a-z]/.test(password)) {
     errors.push('Password must contain at least 1 lowercase letter');
   }
 
-  // Check if password contains at least one number (0-9)
+  // Check if password contains at least one number 
   if (!/[0-9]/.test(password)) {
     errors.push('Password must contain at least 1 number');
   }

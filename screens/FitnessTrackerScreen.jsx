@@ -21,6 +21,11 @@ export default function FitnessTrackerScreen({ user, onLogout }) {
   const [editingActivity, setEditingActivity] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  // UI enhancements (minor)
+  const [searchQuery, setSearchQuery] = useState(''); // Enhancement #1: Search/filter activities
+  const [showCompleted, setShowCompleted] = useState(true); // Enhancement #2: Hide/show completed activities
+  const [isSaving, setIsSaving] = useState(false); // Enhancement #3: Save button loading/disable
+
   // Activity form state
   const [activityName, setActivityName] = useState('');
   const [activityDescription, setActivityDescription] = useState('');
@@ -36,17 +41,22 @@ export default function FitnessTrackerScreen({ user, onLogout }) {
 
   const updateDate = () => {
     const now = new Date();
-    const options = { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    const options = {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
     };
     setCurrentDate(now.toLocaleDateString('en-US', options));
   };
 
+  // Enhancement (tiny reliability improvement): avoid UTC date shifting near midnight
   const getTodayDate = () => {
-    return new Date().toISOString().split('T')[0];
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
   };
 
   const loadData = async () => {
@@ -58,14 +68,14 @@ export default function FitnessTrackerScreen({ user, onLogout }) {
       // Load today's logs
       const today = getTodayDate();
       const logs = await DatabaseService.getActivityLogsForDate(user.id, today);
-      
+
       // Create a map of activity_id to log data
       const logsMap = {};
-      logs.forEach(log => {
+      logs.forEach((log) => {
         logsMap[log.activity_id] = {
           completed: log.completed === 1,
           actual_value: log.actual_value,
-          notes: log.notes
+          notes: log.notes,
         };
       });
       setTodayLogs(logsMap);
@@ -86,19 +96,14 @@ export default function FitnessTrackerScreen({ user, onLogout }) {
       const currentLog = todayLogs[activityId];
       const newCompleted = !currentLog?.completed;
 
-      await DatabaseService.logActivity(
-        user.id,
-        activityId,
-        getTodayDate(),
-        newCompleted
-      );
+      await DatabaseService.logActivity(user.id, activityId, getTodayDate(), newCompleted);
 
-      setTodayLogs(prev => ({
+      setTodayLogs((prev) => ({
         ...prev,
         [activityId]: {
           ...prev[activityId],
-          completed: newCompleted
-        }
+          completed: newCompleted,
+        },
       }));
     } catch (error) {
       console.error('Error toggling activity:', error);
@@ -134,14 +139,24 @@ export default function FitnessTrackerScreen({ user, onLogout }) {
       return;
     }
 
+    // Small validation upgrade: avoid saving NaN
+    const trimmedTarget = targetValue.trim();
+    const parsedTarget = trimmedTarget === '' ? null : Number(trimmedTarget);
+    if (parsedTarget !== null && Number.isNaN(parsedTarget)) {
+      Alert.alert('Error', 'Target value must be a number');
+      return;
+    }
+
     try {
+      setIsSaving(true);
+
       const activityData = {
-        name: activityName,
+        name: activityName.trim(),
         description: activityDescription,
         icon: activityIcon,
-        target_value: targetValue ? parseFloat(targetValue) : null,
+        target_value: parsedTarget,
         target_unit: targetUnit,
-        category: category
+        category: category,
       };
 
       if (editingActivity) {
@@ -155,52 +170,60 @@ export default function FitnessTrackerScreen({ user, onLogout }) {
     } catch (error) {
       console.error('Error saving activity:', error);
       Alert.alert('Error', 'Failed to save activity');
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const deleteActivity = async (activityId) => {
-    Alert.alert(
-      'Delete Activity',
-      'Are you sure you want to delete this activity?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await DatabaseService.deleteActivity(activityId);
-              await loadData();
-            } catch (error) {
-              console.error('Error deleting activity:', error);
-              Alert.alert('Error', 'Failed to delete activity');
-            }
+    Alert.alert('Delete Activity', 'Are you sure you want to delete this activity?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await DatabaseService.deleteActivity(activityId);
+            await loadData();
+          } catch (error) {
+            console.error('Error deleting activity:', error);
+            Alert.alert('Error', 'Failed to delete activity');
           }
-        }
-      ]
-    );
+        },
+      },
+    ]);
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Logout', onPress: onLogout }
-      ]
-    );
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Logout', onPress: onLogout },
+    ]);
   };
 
-  const completedCount = activities.filter(a => todayLogs[a.id]?.completed).length;
-  const percentage = activities.length > 0 
-    ? Math.round((completedCount / activities.length) * 100) 
-    : 0;
+  const completedCount = activities.filter((a) => todayLogs[a.id]?.completed).length;
+  const percentage = activities.length > 0 ? Math.round((completedCount / activities.length) * 100) : 0;
+
+  // Enhancement #1 + #2: filtered list based on search + hide completed
+  const filteredActivities = activities.filter((a) => {
+    const nameMatch = a.name?.toLowerCase().includes(searchQuery.trim().toLowerCase());
+    const descMatch = (a.description || '').toLowerCase().includes(searchQuery.trim().toLowerCase());
+    const matchesQuery = searchQuery.trim() === '' ? true : nameMatch || descMatch;
+
+    const isCompleted = !!todayLogs[a.id]?.completed;
+    const matchesCompletion = showCompleted ? true : !isCompleted;
+
+    return matchesQuery && matchesCompletion;
+  });
+
+  const visibleCompletedCount = filteredActivities.filter((a) => todayLogs[a.id]?.completed).length;
+  const visiblePercentage =
+    filteredActivities.length > 0 ? Math.round((visibleCompletedCount / filteredActivities.length) * 100) : 0;
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      
+
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
@@ -212,9 +235,9 @@ export default function FitnessTrackerScreen({ user, onLogout }) {
             <Text style={styles.logoutText}>Logout</Text>
           </TouchableOpacity>
         </View>
-        
+
         <Text style={styles.headerDate}>{currentDate}</Text>
-        
+
         {/* Progress */}
         <View style={styles.progressContainer}>
           <View style={styles.progressBar}>
@@ -224,7 +247,7 @@ export default function FitnessTrackerScreen({ user, onLogout }) {
             {completedCount} / {activities.length} completed ({percentage}%)
           </Text>
         </View>
-        
+
         {/* Action Buttons */}
         <View style={styles.headerButtons}>
           <TouchableOpacity style={styles.headerButton} onPress={openAddActivity}>
@@ -233,23 +256,64 @@ export default function FitnessTrackerScreen({ user, onLogout }) {
         </View>
       </View>
 
+      {/* Enhancements: Search + Hide Completed + summary for filtered list */}
+      <View style={styles.toolsBar}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search activities..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          autoCapitalize="none"
+          autoCorrect={false}
+          clearButtonMode="while-editing"
+        />
+        <TouchableOpacity
+          style={[styles.pillButton, !showCompleted && styles.pillButtonActive]}
+          onPress={() => setShowCompleted((v) => !v)}
+        >
+          <Text style={[styles.pillButtonText, !showCompleted && styles.pillButtonTextActive]}>
+            {showCompleted ? 'Showing Completed' : 'Hiding Completed'}
+          </Text>
+        </TouchableOpacity>
+
+        {searchQuery.trim() !== '' || !showCompleted ? (
+          <View style={styles.filterSummary}>
+            <Text style={styles.filterSummaryText}>
+              Showing {filteredActivities.length} activities • {visibleCompletedCount}/{filteredActivities.length} done (
+              {visiblePercentage}%)
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                setSearchQuery('');
+                setShowCompleted(true);
+              }}
+              style={styles.clearFiltersButton}
+            >
+              <Text style={styles.clearFiltersText}>Clear</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+      </View>
+
       {/* Activity List */}
       <ScrollView
         style={styles.activityList}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {activities.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateIcon}>💪</Text>
             <Text style={styles.emptyStateText}>No activities yet</Text>
-            <Text style={styles.emptyStateSubtext}>
-              Add your first fitness activity to get started!
-            </Text>
+            <Text style={styles.emptyStateSubtext}>Add your first fitness activity to get started!</Text>
+          </View>
+        ) : filteredActivities.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateIcon}>🔎</Text>
+            <Text style={styles.emptyStateText}>No matches</Text>
+            <Text style={styles.emptyStateSubtext}>Try changing your search or filters.</Text>
           </View>
         ) : (
-          activities.map(activity => (
+          filteredActivities.map((activity) => (
             <ActivityItem
               key={activity.id}
               activity={activity}
@@ -271,24 +335,22 @@ export default function FitnessTrackerScreen({ user, onLogout }) {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {editingActivity ? 'Edit Activity' : 'Add New Activity'}
-            </Text>
-            
+            <Text style={styles.modalTitle}>{editingActivity ? 'Edit Activity' : 'Add New Activity'}</Text>
+
             <TextInput
               style={styles.input}
               placeholder="Activity name (e.g., Morning Run)"
               value={activityName}
               onChangeText={setActivityName}
             />
-            
+
             <TextInput
               style={styles.input}
               placeholder="Icon (emoji, e.g., 🏃)"
               value={activityIcon}
               onChangeText={setActivityIcon}
             />
-            
+
             <TextInput
               style={styles.input}
               placeholder="Description"
@@ -296,7 +358,7 @@ export default function FitnessTrackerScreen({ user, onLogout }) {
               onChangeText={setActivityDescription}
               multiline
             />
-            
+
             <View style={styles.inputRow}>
               <TextInput
                 style={[styles.input, styles.inputHalf]}
@@ -312,43 +374,39 @@ export default function FitnessTrackerScreen({ user, onLogout }) {
                 onChangeText={setTargetUnit}
               />
             </View>
-            
+
             <View style={styles.categoryContainer}>
               <Text style={styles.categoryLabel}>Category:</Text>
               <View style={styles.categoryButtons}>
-                {['Wellness', 'Fitness', 'Health', 'Performance','LifeStyle'].map(cat => ( //added lifestyle category option gavin berger
+                {['Wellness', 'Fitness', 'Health', 'Performance', 'LifeStyle'].map((cat) => (
                   <TouchableOpacity
                     key={cat}
-                    style={[
-                      styles.categoryButton,
-                      category === cat && styles.categoryButtonActive
-                    ]}
+                    style={[styles.categoryButton, category === cat && styles.categoryButtonActive]}
                     onPress={() => setCategory(cat)}
                   >
-                    <Text style={[
-                      styles.categoryButtonText,
-                      category === cat && styles.categoryButtonTextActive
-                    ]}>
+                    <Text style={[styles.categoryButtonText, category === cat && styles.categoryButtonTextActive]}>
                       {cat}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
-            
+
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => setShowActivityModal(false)}
+                disabled={isSaving}
               >
                 <Text style={styles.buttonText}>Cancel</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
-                style={[styles.modalButton, styles.saveButton]}
+                style={[styles.modalButton, styles.saveButton, isSaving && styles.saveButtonDisabled]}
                 onPress={saveActivity}
+                disabled={isSaving}
               >
-                <Text style={styles.buttonText}>Save</Text>
+                <Text style={styles.buttonText}>{isSaving ? 'Saving...' : 'Save'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -361,42 +419,29 @@ export default function FitnessTrackerScreen({ user, onLogout }) {
 // Activity Item Component
 function ActivityItem({ activity, log, onToggle, onEdit, onDelete }) {
   const isCompleted = log?.completed || false;
-  
+
   return (
-    <View style={[
-      styles.activityItem,
-      isCompleted && styles.activityItemCompleted
-    ]}>
+    <View style={[styles.activityItem, isCompleted && styles.activityItemCompleted]}>
       <View style={styles.activityInfo}>
         <View style={styles.activityHeader}>
-          {activity.icon && (
-            <Text style={styles.activityIcon}>{activity.icon}</Text>
-          )}
+          {activity.icon && <Text style={styles.activityIcon}>{activity.icon}</Text>}
           <View style={styles.activityTitleContainer}>
-            <Text style={[
-              styles.activityName,
-              isCompleted && styles.activityNameCompleted
-            ]}>
-              {activity.name}
+            <Text style={[styles.activityName,isCompleted && styles.activityNameCompleted]}
+          >
+            {activity.name.replace(activity.icon || '', '').trim()}
             </Text>
-            {activity.category && (
-              <Text style={styles.categoryBadge}>{activity.category}</Text>
-            )}
+            {activity.category && <Text style={styles.categoryBadge}>{activity.category}</Text>}
           </View>
         </View>
-        
-        {activity.description && (
-          <Text style={styles.activityDescription}>
-            {activity.description}
-          </Text>
-        )}
-        
+
+        {activity.description && <Text style={styles.activityDescription}>{activity.description}</Text>}
+
         {activity.target_value && (
           <Text style={styles.activityTarget}>
             Target: {activity.target_value} {activity.target_unit}
           </Text>
         )}
-        
+
         {/* Action Buttons */}
         <View style={styles.activityActions}>
           <TouchableOpacity onPress={onEdit} style={styles.actionButton}>
@@ -407,19 +452,10 @@ function ActivityItem({ activity, log, onToggle, onEdit, onDelete }) {
           </TouchableOpacity>
         </View>
       </View>
-      
+
       {/* Toggle Button */}
-      <TouchableOpacity
-        style={[
-          styles.toggleButton,
-          isCompleted && styles.toggleButtonActive
-        ]}
-        onPress={onToggle}
-      >
-        <View style={[
-          styles.toggleCircle,
-          isCompleted && styles.toggleCircleActive
-        ]} />
+      <TouchableOpacity style={[styles.toggleButton, isCompleted && styles.toggleButtonActive]} onPress={onToggle}>
+        <View style={[styles.toggleCircle, isCompleted && styles.toggleCircleActive]} />
       </TouchableOpacity>
     </View>
   );
@@ -501,6 +537,63 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+
+  // Enhancements styling
+  toolsBar: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 8,
+    backgroundColor: '#f5f5f5',
+  },
+  searchInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    backgroundColor: 'white',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    marginBottom: 10,
+  },
+  pillButton: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#e9e9e9',
+    marginBottom: 8,
+  },
+  pillButtonActive: {
+    backgroundColor: '#A5D6A7',
+  },
+  pillButtonText: {
+    fontSize: 13,
+    color: '#555',
+    fontWeight: '600',
+  },
+  pillButtonTextActive: {
+    color: 'white',
+  },
+  filterSummary: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  filterSummaryText: {
+    fontSize: 12,
+    color: '#777',
+  },
+  clearFiltersButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  clearFiltersText: {
+    fontSize: 12,
+    color: '#90CAF9',
+    fontWeight: '700',
+  },
+
   activityList: {
     flex: 1,
     padding: 20,
@@ -706,7 +799,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#ccc',
   },
   saveButton: {
-    backgroundColor: '#A5D6A7', //Changed Save Button Color! 
+    backgroundColor: '#A5D6A7', //Changed Save Button Color!
+  },
+  saveButtonDisabled: {
+    opacity: 0.75,
   },
   buttonText: {
     color: 'white',
