@@ -75,15 +75,34 @@ class AuthServiceClass {
    * Validate password strength
    */
   validatePassword(password) {
-    // At least 8 characters, 1 uppercase, 1 lowercase, 1 number
-    const errors = [];
-  // This where you put the password validation logic, for question # 2i
-    
-    return {
-      isValid: errors.length === 0,
-      errors
-    };
+  const errors = [];
+
+  // Check if password is empty or less than 8 characters
+  if (!password || password.length < 8) {  
+    errors.push('Password must be at least 8 characters long');
   }
+
+  // Check if password contains at least one uppercase letter (A-Z)
+  if (!/[A-Z]/.test(password)) {
+    errors.push('Password must contain at least 1 uppercase letter');
+  }
+
+  // Check if password contains at least one lowercase letter (a-z)
+  if (!/[a-z]/.test(password)) {
+    errors.push('Password must contain at least 1 lowercase letter');
+  }
+
+  // Check if password contains at least one number (0-9)
+  if (!/[0-9]/.test(password)) {
+    errors.push('Password must contain at least 1 number');
+  }
+
+  // If there are no errors, password is valid
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+}
 
   /**
    * Register a new user
