@@ -431,7 +431,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   header: {
-    backgroundColor: '#2196F3',
+    backgroundColor: '#4CAF50', //Header color changed
     padding: 20,
     paddingTop: 50,
   },
@@ -540,7 +540,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   activityItemCompleted: {
-    backgroundColor: '#E3F2FD',
+    backgroundColor: '#E8F5E9',
   },
   activityInfo: {
     flex: 1,
@@ -573,7 +573,7 @@ const styles = StyleSheet.create({
   categoryBadge: {
     fontSize: 11,
     color: '#666',
-    backgroundColor: '#E3F2FD',
+    backgroundColor: '#E8F5E9',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 10,
@@ -614,7 +614,7 @@ const styles = StyleSheet.create({
     padding: 3,
   },
   toggleButtonActive: {
-    backgroundColor: '#90CAF9',
+    backgroundColor: '#A5D6A7', //ToggleButton color changed Question 2
   },
   toggleCircle: {
     width: 24,
@@ -680,7 +680,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
   },
   categoryButtonActive: {
-    backgroundColor: '#90CAF9',
+    backgroundColor: '#A5D6A7',
   },
   categoryButtonText: {
     fontSize: 13,
@@ -706,7 +706,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ccc',
   },
   saveButton: {
-    backgroundColor: '#90CAF9',
+    backgroundColor: '#A5D6A7', //Changed Save Button Color! 
   },
   buttonText: {
     color: 'white',
