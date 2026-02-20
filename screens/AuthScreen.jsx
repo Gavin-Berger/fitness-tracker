@@ -77,7 +77,7 @@ export default function AuthScreen({ onLogin }) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <Text style={styles.logo}>🦾</Text>
+          <Text style={styles.logo}>🌱</Text> //Changed Logo to Planet
           <Text style={styles.title}>Fitness Tracker</Text>
           <Text style={styles.subtitle}>
             {isLogin ? 'Welcome back!' : 'Start your fitness journey'}
